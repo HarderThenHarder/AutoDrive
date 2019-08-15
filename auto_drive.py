@@ -56,13 +56,13 @@ def isInROI(roi, line):
 def get_distance(pt1, pt2):
     return hypot(pt1[0] - pt2[0], pt1[1] - pt2[1]) 
 
-def updateROIByNearset(roi, illegal_points, max_drift):
+def updateROIByNearset(roi, legal_points, max_drift):
     cloest_top_left = INF
     cloest_bottom_left = INF
     cloest_bottom_right = INF
     cloest_top_right = INF
 
-    for point in illegal_points:
+    for point in legal_points:
         if get_distance(point, roi[0]) < cloest_top_left:
             top_left = point
             cloest_top_left = get_distance(point, roi[0])
@@ -84,18 +84,18 @@ def updateROIByNearset(roi, illegal_points, max_drift):
     
     return np.array([[res_top_left[0], 490], [res_bottom_left[0], roi[1][1]], [res_bottom_right[0], roi[2][1]], [res_top_right[0], 490]])
 
-def updateROI(roi, illegal_points, max_drift):
+def updateROI(roi, legal_points, max_drift):
     # sort the points by distance to the ROI Center as Descend
     center_point = [int((roi[1][0] + roi[2][0]) / 2), int((roi[0][1] + roi[1][1]) / 2)]
-    # print(" ->Before:", illegal_points)
-    illegal_points.sort(key=lambda element: get_distance(center_point, element), reverse=True)
-    # print(" ->After:", illegal_points)
+    # print(" ->Before:", legal_points)
+    legal_points.sort(key=lambda element: get_distance(center_point, element), reverse=True)
+    # print(" ->After:", legal_points)
     corner_has_point = [0, 0, 0, 0]
     new_roi_list = [roi[0], roi[1], roi[2], roi[3]]
     close_corner_list = [INF, INF, INF, INF]
 
-    print("Point Length:", len(illegal_points))
-    for point in illegal_points:
+    print("Point Length:", len(legal_points))
+    for point in legal_points:
         distance_to_each_corner = np.array([get_distance(point, roi[0]), get_distance(point, roi[1]), get_distance(point, roi[2]), get_distance(point, roi[3])])
         corner_idx = np.argmin(distance_to_each_corner)
         # Just Update those corners which don't have corresponding point
@@ -206,8 +206,8 @@ def main():
             cv2.polylines(frame_edges, [roi], 1, (255, 0, 0), 2)
 
         lines = cv2.HoughLinesP(edges, 1, np.pi/180, 80, maxLineGap=250)
-        illegal_points = []
-        illegal_lines = []
+        legal_points = []
+        legal_lines = []
         if lines is not None:
             for line in lines:
                 x1, y1, x2, y2 = line[0]
@@ -216,25 +216,25 @@ def main():
                 if isInROI(roi, line):
                     x1, y1, x2, y2 = line[0]
                     # cv2.line(orig_frame, (x1, y1), (x2, y2), (0, 255, 0), 1)
-                    illegal_points.append([x1, y1])
-                    illegal_points.append([x2, y2])
-                    illegal_lines.append(line)
+                    legal_points.append([x1, y1])
+                    legal_points.append([x2, y2])
+                    legal_lines.append(line)
                     # print('({}, {}), ({}, {})'.format(x1, y1, x2, y2))
                 else:
                     x1, y1, x2, y2 = line[0]
                     thres = cv2.getTrackbarPos('Close', 'Auto Drive')
                     if notInButCloseToROI(roi, [x1, y1], close_threshold=thres):
-                        illegal_points.append([x1, y1])
+                        legal_points.append([x1, y1])
                     if notInButCloseToROI(roi, [x2, y2], close_threshold=thres):
-                        illegal_points.append([x2, y2])
+                        legal_points.append([x2, y2])
 
         # update ROI
         drift = cv2.getTrackbarPos('Max Drift', 'Auto Drive')
-        roi = updateROI(roi, illegal_points, max_drift=drift)
+        roi = updateROI(roi, legal_points, max_drift=drift)
 
         # Draw Lane Line
-        if illegal_lines is not None:
-            orig_frame = drawLaneLine(orig_frame, illegal_lines)
+        if legal_lines is not None:
+            orig_frame = drawLaneLine(orig_frame, legal_lines)
 
         if show_flag == 'RGB':
             cv2.imshow("Auto Drive", orig_frame)
